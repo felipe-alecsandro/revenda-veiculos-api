@@ -1,0 +1,41 @@
+name: API CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          ECR_REPOSITORY: ${{ vars.API_ECR_REPOSITORY }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REPOSITORY:${GITHUB_SHA} .
+          docker tag $ECR_REPOSITORY:${GITHUB_SHA} $ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}
+
+      - name: Force new ECS deployment
+        run: |
+          aws ecs update-service \
+            --cluster "${{ vars.API_ECS_CLUSTER }}" \
+            --service "${{ vars.API_ECS_SERVICE }}" \
+            --force-new-deployment
