@@ -28,6 +28,11 @@ output "api_base_url" {
   description = "Base URL for the deployed API."
 }
 
+output "api_https_base_url" {
+  value       = "https://${aws_cloudfront_distribution.api_https.domain_name}/v1"
+  description = "HTTPS base URL for the deployed API via CloudFront."
+}
+
 output "db_endpoint" {
   value       = aws_db_instance.api.address
   description = "RDS PostgreSQL endpoint address."

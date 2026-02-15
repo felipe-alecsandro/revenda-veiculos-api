@@ -105,6 +105,54 @@ resource "aws_lb_listener" "http" {
   }
 }
 
+resource "aws_cloudfront_distribution" "api_https" {
+  enabled = true
+
+  origin {
+    domain_name = aws_lb.api.dns_name
+    origin_id   = "api-alb-origin"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  default_cache_behavior {
+    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "POST", "DELETE"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = "api-alb-origin"
+
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+
+    forwarded_values {
+      query_string = true
+      headers      = ["*"]
+
+      cookies {
+        forward = "all"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+}
+
 resource "aws_security_group" "ecs_tasks" {
   name        = "${var.project_name}-ecs-sg"
   description = "Allow ALB traffic to API ECS tasks."
@@ -183,7 +231,7 @@ resource "aws_iam_role" "ecs_task" {
 }
 
 locals {
-  database_url = "postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.api.address}:${aws_db_instance.api.port}/${var.db_name}"
+  database_url = "postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.api.address}:${aws_db_instance.api.port}/${var.db_name}?uselibpqcompat=true&sslmode=require"
 }
 
 resource "aws_ecs_task_definition" "api" {
