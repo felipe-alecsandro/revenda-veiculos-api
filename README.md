@@ -18,6 +18,7 @@ API NestJS do MVP da plataforma de revenda de veiculos.
 - `GET /v1/vehicles/:id`
 - `POST /v1/vehicles`
 - `PATCH /v1/vehicles/:id`
+- `POST /v1/vehicles/upload-image`
 - `POST /v1/sales`
 - `GET /v1/sales/my-purchases`
 
@@ -184,8 +185,55 @@ Exemplo:
 ```bash
 cd iac/terraform
 terraform init
-terraform plan
+terraform plan \
+  -var="db_password=<senha_forte>" \
+  -var="cors_origin=http://localhost:5173" \
+  -var="cognito_region=us-east-1" \
+  -var="cognito_user_pool_id=us-east-1_xxxxxxxxx" \
+  -var="cognito_client_id=xxxxxxxxxxxxxxxxxxxx"
+terraform apply \
+  -var="db_password=<senha_forte>" \
+  -var="cors_origin=http://localhost:5173" \
+  -var="cognito_region=us-east-1" \
+  -var="cognito_user_pool_id=us-east-1_xxxxxxxxx" \
+  -var="cognito_client_id=xxxxxxxxxxxxxxxxxxxx"
 ```
+
+O Terraform da API provisiona (escopo challenge):
+
+- ECR repository
+- ECS cluster + task definition + service (Fargate)
+- ALB publico com health check em `/v1/health`
+- CloudWatch log group
+- RDS PostgreSQL
+
+## Deploy automatizado (GitHub Actions)
+
+Pipeline `cd.yml` da API (push em `main`) faz:
+
+1. build da imagem Docker
+2. push para ECR (`sha` e `latest`)
+3. criacao de nova revisao da task definition com a imagem nova
+4. update do ECS service e espera de estabilidade
+
+### GitHub Secrets e Variables necessarios (API)
+
+Secrets:
+
+- `AWS_GITHUB_ROLE_ARN`
+
+Variables:
+
+- `AWS_REGION`
+- `API_ECR_REPOSITORY`
+- `API_ECS_CLUSTER`
+- `API_ECS_SERVICE`
+- `API_CONTAINER_NAME`
+
+### Rollback rapido (API)
+
+- Pelo ECS, selecione a revisao anterior da task definition e rode novo deploy do service.
+- Alternativamente, reexecute o CD com um commit/tag anterior.
 
 ## Variaveis de ambiente
 
