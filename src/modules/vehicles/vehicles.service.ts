@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { SaleEntity } from '../sales/entities/sale.entity';
 import { VehicleEntity } from './entities/vehicle.entity';
 
 type CreateVehicleInput = Pick<
@@ -17,6 +18,8 @@ export class VehiclesService {
   constructor(
     @InjectRepository(VehicleEntity)
     private readonly vehiclesRepository: Repository<VehicleEntity>,
+    @InjectRepository(SaleEntity)
+    private readonly salesRepository: Repository<SaleEntity>,
   ) {}
 
   async create(input: CreateVehicleInput): Promise<VehicleEntity> {
@@ -63,5 +66,14 @@ export class VehiclesService {
     const vehicle = await this.findById(id);
     vehicle.status = 'SOLD';
     return this.vehiclesRepository.save(vehicle);
+  }
+
+  async hardDelete(id: string): Promise<void> {
+    await this.findById(id);
+
+    await this.vehiclesRepository.manager.transaction(async (manager) => {
+      await manager.delete(SaleEntity, { vehicleId: id });
+      await manager.delete(VehicleEntity, { id });
+    });
   }
 }

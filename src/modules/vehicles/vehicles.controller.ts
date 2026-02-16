@@ -2,6 +2,9 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
+  HttpCode,
+  HttpStatus,
   Get,
   Param,
   Patch,
@@ -15,6 +18,7 @@ import {
   ApiBody,
   ApiBadRequestResponse,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -216,6 +220,36 @@ export class VehiclesController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() body: UpdateVehicleDto) {
     return this.vehiclesService.update(id, body);
+  }
+
+  @ApiOperation({
+    summary: 'Excluir veiculo (hard delete)',
+    description:
+      'Remove permanentemente o veiculo. Caso exista venda vinculada, o registro de venda tambem e removido.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do veiculo.',
+    example: '7c5a7a87-aefe-46ec-b6f3-4514fd008d9b',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiNoContentResponse({
+    description: 'Veiculo removido com sucesso.',
+  })
+  @ApiNotFoundResponse({
+    description: 'Vehicle <id> not found.',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Vehicle 7c5a7a87-aefe-46ec-b6f3-4514fd008d9b not found.',
+        error: 'Not Found',
+      },
+    },
+  })
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async hardDelete(@Param('id') id: string): Promise<void> {
+    await this.vehiclesService.hardDelete(id);
   }
 
   @ApiOperation({
