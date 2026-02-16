@@ -18,6 +18,7 @@ API NestJS do MVP da plataforma de revenda de veiculos.
 - `GET /v1/vehicles/:id`
 - `POST /v1/vehicles`
 - `PATCH /v1/vehicles/:id`
+- `DELETE /v1/vehicles/:id`
 - `POST /v1/vehicles/upload-image`
 - `POST /v1/sales`
 - `GET /v1/sales/my-purchases`
