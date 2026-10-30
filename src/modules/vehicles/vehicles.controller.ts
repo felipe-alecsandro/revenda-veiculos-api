@@ -3,9 +3,9 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
-  Get,
   Param,
   Patch,
   Post,
@@ -51,34 +51,6 @@ const toSlug = (value: string): string =>
 @Controller('vehicles')
 export class VehiclesController {
   constructor(private readonly vehiclesService: VehiclesService) {}
-
-  @ApiOperation({
-    summary: 'Listar veiculos disponiveis',
-    description: 'Retorna somente os veiculos com status AVAILABLE.',
-  })
-  @ApiOkResponse({
-    description: 'Lista de veiculos disponiveis.',
-    type: VehicleEntity,
-    isArray: true,
-  })
-  @Get()
-  async listAvailable() {
-    return this.vehiclesService.listAvailable();
-  }
-
-  @ApiOperation({
-    summary: 'Listar veiculos vendidos',
-    description: 'Retorna somente os veiculos com status SOLD.',
-  })
-  @ApiOkResponse({
-    description: 'Lista de veiculos vendidos.',
-    type: VehicleEntity,
-    isArray: true,
-  })
-  @Get('sold')
-  async listSold() {
-    return this.vehiclesService.listSold();
-  }
 
   @ApiOperation({
     summary: 'Buscar veiculo por ID',
