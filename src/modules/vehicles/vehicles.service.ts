@@ -1,8 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SaleEntity } from '../sales/entities/sale.entity';
+import { SalesSyncClient } from './sales-sync.client';
 import { VehicleEntity } from './entities/vehicle.entity';
 
 type CreateVehicleInput = Pick<
@@ -18,40 +22,51 @@ export class VehiclesService {
   constructor(
     @InjectRepository(VehicleEntity)
     private readonly vehiclesRepository: Repository<VehicleEntity>,
-    @InjectRepository(SaleEntity)
-    private readonly salesRepository: Repository<SaleEntity>,
+    private readonly salesSyncClient: SalesSyncClient,
   ) {}
 
   async create(input: CreateVehicleInput): Promise<VehicleEntity> {
-    const vehicle = this.vehiclesRepository.create({
-      id: randomUUID(),
-      ...input,
-      status: 'AVAILABLE',
-    });
-    return this.vehiclesRepository.save(vehicle);
+    const vehicle = await this.vehiclesRepository.save(
+      this.vehiclesRepository.create({
+        id: randomUUID(),
+        ...input,
+        status: 'AVAILABLE',
+      }),
+    );
+
+    try {
+      await this.salesSyncClient.upsert(vehicle);
+    } catch (error) {
+      await this.vehiclesRepository.delete({ id: vehicle.id });
+      throw this.asSyncError(error);
+    }
+    return vehicle;
   }
 
   async update(id: string, input: UpdateVehicleInput): Promise<VehicleEntity> {
     const vehicle = await this.findById(id);
+    const previous = {
+      brand: vehicle.brand,
+      model: vehicle.model,
+      year: vehicle.year,
+      color: vehicle.color,
+      price: vehicle.price,
+      imageUrl: vehicle.imageUrl,
+    };
     const definedInput = Object.fromEntries(
       Object.entries(input).filter(([, value]) => value !== undefined),
     ) as UpdateVehicleInput;
     Object.assign(vehicle, definedInput);
-    return this.vehiclesRepository.save(vehicle);
-  }
+    const saved = await this.vehiclesRepository.save(vehicle);
 
-  async listAvailable(): Promise<VehicleEntity[]> {
-    return this.vehiclesRepository.find({
-      where: { status: 'AVAILABLE' },
-      order: { price: 'ASC' },
-    });
-  }
-
-  async listSold(): Promise<VehicleEntity[]> {
-    return this.vehiclesRepository.find({
-      where: { status: 'SOLD' },
-      order: { price: 'ASC' },
-    });
+    try {
+      await this.salesSyncClient.upsert(saved);
+    } catch (error) {
+      Object.assign(saved, previous);
+      await this.vehiclesRepository.save(saved);
+      throw this.asSyncError(error);
+    }
+    return saved;
   }
 
   async findById(id: string): Promise<VehicleEntity> {
@@ -62,18 +77,16 @@ export class VehiclesService {
     return vehicle;
   }
 
-  async markAsSold(id: string): Promise<VehicleEntity> {
-    const vehicle = await this.findById(id);
-    vehicle.status = 'SOLD';
-    return this.vehiclesRepository.save(vehicle);
-  }
-
   async hardDelete(id: string): Promise<void> {
     await this.findById(id);
+    await this.salesSyncClient.remove(id);
+    await this.vehiclesRepository.delete({ id });
+  }
 
-    await this.vehiclesRepository.manager.transaction(async (manager) => {
-      await manager.delete(SaleEntity, { vehicleId: id });
-      await manager.delete(VehicleEntity, { id });
-    });
+  private asSyncError(error: unknown): Error {
+    if (error instanceof Error) {
+      return error;
+    }
+    return new BadGatewayException('Sales service rejected catalog sync.');
   }
 }

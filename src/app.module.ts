@@ -3,11 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
-import { SalesModule } from './modules/sales/sales.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { VehicleEntity } from './modules/vehicles/entities/vehicle.entity';
-import { SaleEntity } from './modules/sales/entities/sale.entity';
 
 @Module({
   imports: [
@@ -21,7 +19,7 @@ import { SaleEntity } from './modules/sales/entities/sale.entity';
           ? (process.env.DATABASE_SQLITE_PATH ?? ':memory:')
           : undefined,
       url: process.env.DATABASE_URL,
-      entities: [VehicleEntity, SaleEntity],
+      entities: [VehicleEntity],
       migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
       migrationsRun:
         process.env.NODE_ENV !== 'test' && Boolean(process.env.DATABASE_URL),
@@ -30,7 +28,6 @@ import { SaleEntity } from './modules/sales/entities/sale.entity';
       logging: false,
     }),
     VehiclesModule,
-    SalesModule,
     HealthModule,
     AuthModule,
   ],

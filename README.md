@@ -1,27 +1,25 @@
 # revenda-veiculos-api
 
-API NestJS do MVP da plataforma de revenda de veiculos.
+API NestJS do catalogo de veiculos. Na Fase 4 este processo cadastra e edita o estoque. Listagem, compra e webhook de pagamento ficam no servico `revenda-veiculos-vendas`, com outro database. Depois de cada gravacao, esta API chama o servico de vendas por HTTP (`SALES_API_BASE_URL`) com o header `x-internal-token`. Se a chamada falha, a gravacao local e desfeita.
 
 ## Tecnologias
 
 - NestJS
 - TypeScript
-- PostgreSQL
-- AWS Cognito (integracao de autenticacao separada)
+- PostgreSQL (`revenda_veiculos`; o database `revenda_vendas` e criado no mesmo Postgres para o outro servico)
+- AWS Cognito (permanece no projeto, nao participa da compra)
 - TypeORM
 
-## Endpoints MVP
+## Endpoints
 
 - `GET /v1/health`
-- `GET /v1/vehicles`
-- `GET /v1/vehicles/sold`
 - `GET /v1/vehicles/:id`
 - `POST /v1/vehicles`
 - `PATCH /v1/vehicles/:id`
 - `DELETE /v1/vehicles/:id`
 - `POST /v1/vehicles/upload-image`
-- `POST /v1/sales`
-- `GET /v1/sales/my-purchases`
+
+Listagem a venda, listagem de vendidos, `POST /v1/sales` e o webhook estao em `http://localhost:3001/v1` no servico de vendas.
 
 ## Como rodar local
 
@@ -121,27 +119,30 @@ npm run test:e2e
 npm run build
 ```
 
-Os testes E2E cobrem os fluxos principais:
+Os testes E2E cobrem o catalogo e a sincronizacao HTTP com o servico de vendas (fetch mockado):
 
-- cadastrar veiculo
-- editar veiculo
-- listar disponiveis ordenado por preco
-- comprar veiculo
-- listar vendidos ordenado por preco
-- consultar historico de compras
+- cadastrar veiculo e desfazer a gravacao se a sincronizacao falha
+- editar veiculo e restaurar o dado anterior se a sincronizacao falha
+- excluir so depois que o servico de vendas aceita
 
 ## Como testar (manual fim-a-fim)
 
-1. Configure `.env` com `DATABASE_URL` e variaveis `COGNITO_*`.
-2. Execute `npm run migration:run`.
-3. Suba a API com `npm run start:dev`.
-4. (Opcional) Popule dados de demo:
+1. Configure `.env` com `DATABASE_URL`, `SALES_API_BASE_URL`, `SALES_INTERNAL_TOKEN` e variaveis `COGNITO_*`.
+2. Suba o Postgres. O compose cria `revenda_veiculos` e, em volume novo, `revenda_vendas`. Se o volume ja existia:
+
+```bash
+docker exec -it revenda-veiculos-postgres psql -U revenda -d revenda_veiculos -c "CREATE DATABASE revenda_vendas;"
+```
+
+3. Execute `npm run migration:run`.
+4. Suba a API com `npm run start:dev` e o servico de vendas na porta 3001.
+5. (Opcional) Popule dados de demo:
 
 ```bash
 npm run seed:demo
 ```
 
-5. Teste cadastro e edicao:
+6. Teste cadastro e edicao. A API so responde 201 se o servico de vendas aceitar a projecao:
 
 ```bash
 curl -X POST http://localhost:3000/v1/vehicles \
@@ -153,17 +154,7 @@ curl -X PATCH http://localhost:3000/v1/vehicles/<VEHICLE_ID> \
   -d '{"color":"Vermelho","price":53000}'
 ```
 
-6. Teste compra e historico com token Cognito:
-
-```bash
-curl -X POST http://localhost:3000/v1/sales \
-  -H "Authorization: Bearer <COGNITO_ID_TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{"vehicleId":"<VEHICLE_ID>"}'
-
-curl http://localhost:3000/v1/sales/my-purchases \
-  -H "Authorization: Bearer <COGNITO_ID_TOKEN>"
-```
+7. Compra, listagem e webhook sao do outro servico. Veja o README de `revenda-veiculos-vendas`.
 
 ## CI/CD
 
@@ -238,4 +229,4 @@ Variables:
 
 ## Variaveis de ambiente
 
-Confira `.env.example` para os valores necessarios da API e do Cognito.
+Confira `.env.example`. Alem do banco e do Cognito, `SALES_API_BASE_URL` e `SALES_INTERNAL_TOKEN` precisam ser os mesmos do servico de vendas.

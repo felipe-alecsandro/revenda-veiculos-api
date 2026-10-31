@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import { randomUUID } from 'crypto';
 import { AppDataSource } from '../data-source';
-import { SaleEntity } from '../../modules/sales/entities/sale.entity';
 import { VehicleEntity } from '../../modules/vehicles/entities/vehicle.entity';
 
 type VehicleSeed = Pick<
@@ -150,48 +149,61 @@ const soldVehicles: VehicleSeed[] = [
   },
 ];
 
+async function syncCatalog(vehicles: VehicleEntity[]): Promise<void> {
+  const baseUrl = process.env.SALES_API_BASE_URL;
+  const token = process.env.SALES_INTERNAL_TOKEN;
+  if (!baseUrl || !token) {
+    console.log(
+      'SALES_API_BASE_URL ausente. Catalogo local gravado, projecao de vendas nao sincronizada.',
+    );
+    return;
+  }
+
+  for (const vehicle of vehicles) {
+    const response = await fetch(
+      `${baseUrl}/integration/vehicles/${vehicle.id}`,
+      {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          'x-internal-token': token,
+        },
+        body: JSON.stringify({
+          brand: vehicle.brand,
+          model: vehicle.model,
+          year: vehicle.year,
+          color: vehicle.color,
+          price: vehicle.price,
+          imageUrl: vehicle.imageUrl,
+        }),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Falha ao sincronizar ${vehicle.id} com o servico de vendas: HTTP ${response.status}`,
+      );
+    }
+  }
+}
+
 async function runSeed(): Promise<void> {
   await AppDataSource.initialize();
   const vehicleRepo = AppDataSource.getRepository(VehicleEntity);
-  const saleRepo = AppDataSource.getRepository(SaleEntity);
 
-  await saleRepo.createQueryBuilder().delete().execute();
+  await AppDataSource.query(`DROP TABLE IF EXISTS sales;`);
   await vehicleRepo.createQueryBuilder().delete().execute();
 
-  const availableEntities = availableVehicles.map((vehicle) =>
+  const entities = [...availableVehicles, ...soldVehicles].map((vehicle) =>
     vehicleRepo.create({
       id: randomUUID(),
       ...vehicle,
       status: 'AVAILABLE',
     }),
   );
-  await vehicleRepo.save(availableEntities);
+  await vehicleRepo.save(entities);
+  await syncCatalog(entities);
 
-  const soldEntities = soldVehicles.map((vehicle) =>
-    vehicleRepo.create({
-      id: randomUUID(),
-      ...vehicle,
-      status: 'SOLD',
-    }),
-  );
-  await vehicleRepo.save(soldEntities);
-
-  const baseDate = new Date('2026-01-10T10:00:00.000Z');
-  const sales = soldEntities.map((vehicle, index) =>
-    saleRepo.create({
-      id: randomUUID(),
-      vehicleId: vehicle.id,
-      buyerId: `buyer-${index + 1}`,
-      buyerEmail: `comprador${index + 1}@email.com`,
-      soldAt: new Date(baseDate.getTime() + index * 86400000).toISOString(),
-      salePrice: vehicle.price,
-    }),
-  );
-  await saleRepo.save(sales);
-
-  console.log(
-    `Seed concluido: ${availableEntities.length} disponiveis, ${soldEntities.length} vendidos.`,
-  );
+  console.log(`Seed concluido: ${entities.length} veiculos no catalogo.`);
   await AppDataSource.destroy();
 }
 
