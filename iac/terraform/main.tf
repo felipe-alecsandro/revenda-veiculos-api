@@ -179,10 +179,13 @@ resource "aws_security_group" "rds" {
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ecs_tasks.id]
+    from_port = 5432
+    to_port   = 5432
+    protocol  = "tcp"
+    security_groups = compact([
+      aws_security_group.ecs_tasks.id,
+      var.sales_ecs_security_group_id,
+    ])
   }
 
   egress {
@@ -270,7 +273,9 @@ resource "aws_ecs_task_definition" "api" {
         { name = "DATABASE_URL", value = local.database_url },
         { name = "COGNITO_REGION", value = var.cognito_region },
         { name = "COGNITO_USER_POOL_ID", value = var.cognito_user_pool_id },
-        { name = "COGNITO_CLIENT_ID", value = var.cognito_client_id }
+        { name = "COGNITO_CLIENT_ID", value = var.cognito_client_id },
+        { name = "SALES_API_BASE_URL", value = var.sales_api_base_url },
+        { name = "SALES_INTERNAL_TOKEN", value = var.sales_internal_token }
       ]
     }
   ])

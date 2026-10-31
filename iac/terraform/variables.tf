@@ -155,3 +155,22 @@ variable "cognito_client_id" {
   description = "AWS Cognito app client ID."
   type        = string
 }
+
+variable "sales_api_base_url" {
+  description = "Base URL of the sales service, including the /v1 prefix."
+  type        = string
+  default     = ""
+}
+
+variable "sales_internal_token" {
+  description = "Shared token sent as x-internal-token to the sales service."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "sales_ecs_security_group_id" {
+  description = "Security group of the sales ECS tasks, allowed on the catalog Postgres."
+  type        = string
+  default     = ""
+}
